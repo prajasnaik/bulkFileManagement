@@ -143,6 +143,132 @@ int ProcessCommandLine(char *commandLineArguments[], int argCount)
 }
 
 
+
+// function: Help
+//      Provides a basic message on how to use the program.
+//  @param: None
+//  @return: Integer Error Code
+int Help()
+{
+    char *helpMessage = "\tUsage:\n\t./my_fm -c <Path> -w <Path> -a <TextFilePath> <string to append> -r <OldPath> <NewPath> -d <Path>\n\tFor more info, please refer to README file\n";
+    int length = strlen(helpMessage);
+    int error = write(STDOUT_FILENO, helpMessage, length);
+    if (error == E_GENERAL)
+        return errno;
+    else return E_OK;
+}
+
+
+//  function: PerformOperations
+//      This function calls and executes appropriate functions based on
+//      which flags were set after processing command line.
+//  @param: None
+//  @return: Integer Error Code
+int PerformOperations()
+{
+    int status = E_OK;
+    
+    if (fCreate)
+    {
+        if(fDirectory)
+        {
+            status = CreateDirectory(createPath);
+            if (status != E_OK)
+                return status;
+            fDirectory = DISABLE;
+        }
+        else 
+        {
+            status = CreateFile(createPath);
+            if(status != E_OK)
+                return status;
+        }
+    }
+    if (fAppend)
+    {
+        status = CheckDirectory(appendPath);
+        if (status != E_OK)
+            return status;
+
+        if (!fDirectory)
+        {
+            if (fBinary)
+            {
+                int startNumber = strtol(appendBuffer, NULL, 0);    // Convert start number to int base 10
+                AppendOddNumbers(startNumber, appendPath);
+                if (status != E_OK)
+                    return status;
+            }
+            else
+            {
+                status = AppendText(appendBuffer, appendPath);
+                if (status != E_OK)
+                    return status;
+            }
+        }
+        else
+            fDirectory = DISABLE;
+    }
+
+    if (fWrite)
+    {
+        status = CheckDirectory(writePath);
+        if (status != E_OK)
+            return status;
+        if (!fDirectory)
+        {
+            status = PrintFirstNBytes(writePath);
+            if (status != E_OK)
+                return status;
+        }
+        else
+            fDirectory = DISABLE;
+
+    }
+
+    if (fRename)
+    {
+        status = CheckDirectory(oldPath);   
+        if (status != E_OK)
+            return status;
+        if (fDirectory)
+        {
+            status = RenameDirectory(oldPath, newPath);
+            if (status != E_OK)
+                return status;
+            fDirectory = DISABLE;
+        }
+        else
+        {
+            status = RenameFile(oldPath, newPath);
+            if (status != E_OK)
+                return status;
+        }
+    }
+        if (fDelete)
+    {
+        status = CheckDirectory(deletePath);
+        if (status != E_OK)
+            return status;
+
+        if (fDirectory)
+        {
+            status = RemoveDirectory(deletePath);
+            if (status != E_OK)
+                return status;
+            fDirectory = DISABLE;
+        }
+        else
+        {
+            status = RemoveFile(deletePath);
+            if (status != E_OK)
+                return status;
+        }
+    }
+    return status;
+}
+
+
 //  function: CheckDirectory
 //      This function checks if a given path is a file or directory and 
 //      sets the fDirectory flag appropriately
@@ -350,7 +476,7 @@ int CreateDirectory(char *pathName)
         return errno;
     }
     return E_OK;
-}
+}   
 
 //  function: RemoveFile
 //      Deletes specified file if no other links exist, else unlinks
