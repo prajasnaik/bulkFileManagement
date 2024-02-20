@@ -6,6 +6,18 @@
 // @date: 13 February 2024
 // Simple file management program
 
+//Define Statements
+#define     _GNU_SOURCE
+#define     BUF_SIZE                1024
+#define     N_BYTES                 50
+#define     MAX_APPEND_SIZE         50
+#define     MAX_BUF_SIZE            100
+#define     E_OK                    0
+#define     E_GENERAL               -1
+#define     IS_FILE                 0
+#define     IS_DIRECTORY            1
+#define     ENABLE                  1
+#define     DISABLE                 0
 
 // Include Statements
 #include <sys/types.h>
@@ -16,18 +28,9 @@
 #include <stdlib.h>
 #include <stdio.h> // used only for rename system call
 #include <string.h>
+#include <sys/syscall.h>
+#include <dirent.h>
 
-
-//Define Statements
-#define     N_BYTES                 50
-#define     MAX_APPEND_SIZE         50
-#define     MAX_BUF_SIZE            100
-#define     E_OK                    0
-#define     E_GENERAL               -1
-#define     IS_FILE                 0
-#define     IS_DIRECTORY            1
-#define     ENABLE                  1
-#define     DISABLE                 0
 
 // Global Variable for Error Code
 int         ec          =           E_OK;
@@ -70,6 +73,14 @@ int         RenameFile              (char *, char *);
 int         PerformOperations       ();
 int         PrintFirstNBytes        (char *);
 int         Help                    ();
+int         BulkDeleteDirectory     (char *);
+
+struct linux_dirent {
+    unsigned long  d_ino;
+    off_t          d_off;
+    unsigned short d_reclen;
+    char           d_name[];
+};
 
 // Main function
 int main(int argc, char *argv[])
@@ -245,7 +256,7 @@ int PerformOperations()
             fDirectory = DISABLE;
 
     }
-    
+
     if (fDelete)
     {
         status = CheckDirectory(deletePath);
@@ -483,7 +494,8 @@ int CreateDirectory(char *pathName)
 //      Deletes specified file if no other links exist, else unlinks
 //  @param: pointer to file path to delete / unlink
 //  @return: Integer error code
-int RemoveFile(char *filePath)
+int 
+RemoveFile(char *filePath)
 {
     int status = unlink(filePath);
     if (status == E_GENERAL)
@@ -498,12 +510,74 @@ int RemoveFile(char *filePath)
 //      Deletes specified directory if it is empty
 //  @param: pointer to firectory path to delete
 //  @return: Integer error code
-int RemoveDirectory(char *directoryPath)
+int
+RemoveDirectory(char *path)
 {
-    int status = rmdir(directoryPath);
+    int status = rmdir(path);
     if (status == E_GENERAL)
     {
-        return errno;
+        if (errno == ENOTEMPTY)
+        {
+            goto notEmpty;
+        }
+        else return errno; 
     }
-    return E_OK;
+    else
+        return E_OK;
+    notEmpty:
+        status = BulkDeleteDirectory(path);
+        if (status == 0)
+            return RemoveDirectory(path);
 }
+
+int
+BulkDeleteDirectory(char *path)
+{
+    int fd;
+    long nread;
+    char buf[BUF_SIZE];
+    struct linux_dirent *d;
+    char d_type;
+    struct stat fileInfo;
+    char buffer[1024];
+    fd = open(path, O_RDONLY | O_DIRECTORY);
+    if (fd == -1)
+        return errno;
+    for (;;) 
+    {
+        
+        nread = getdents64(fd, buf, BUF_SIZE);
+        if (nread == -1)
+            return errno;
+
+        if (nread == 0)
+            break;
+
+        for (long bpos = 0; bpos < nread;) {
+            d = (struct linux_dirent *) (buf + bpos);
+            d_type = *(buf + bpos + d->d_reclen - 1);
+            if (strcmp(d->d_name, ".") == 0 || strcmp(d->d_name, "..") == 0)
+            {
+                goto skip;
+            }
+            strcpy(buffer, path);
+            strcat(buffer, "/");
+            strcat(buffer, d->d_name);
+            if (d_type == DT_DIR)
+            {
+                
+                int error = RemoveDirectory(buffer);
+                if(error != 0)
+                    return error;
+
+            }
+            else
+            {
+                RemoveFile(buffer);
+            }
+            skip:
+                bpos += d->d_reclen;
+        }
+    }
+}
+
