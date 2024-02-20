@@ -184,6 +184,26 @@ int PerformOperations()
                 return status;
         }
     }
+    if (fRename)
+    {
+        status = CheckDirectory(oldPath);   
+        if (status != E_OK)
+            return status;
+        if (fDirectory)
+        {
+            status = RenameDirectory(oldPath, newPath);
+            if (status != E_OK)
+                return status;
+            fDirectory = DISABLE;
+        }
+        else
+        {
+            status = RenameFile(oldPath, newPath);
+            if (status != E_OK)
+                return status;
+        }
+    }
+
     if (fAppend)
     {
         status = CheckDirectory(appendPath);
@@ -225,27 +245,8 @@ int PerformOperations()
             fDirectory = DISABLE;
 
     }
-
-    if (fRename)
-    {
-        status = CheckDirectory(oldPath);   
-        if (status != E_OK)
-            return status;
-        if (fDirectory)
-        {
-            status = RenameDirectory(oldPath, newPath);
-            if (status != E_OK)
-                return status;
-            fDirectory = DISABLE;
-        }
-        else
-        {
-            status = RenameFile(oldPath, newPath);
-            if (status != E_OK)
-                return status;
-        }
-    }
-        if (fDelete)
+    
+    if (fDelete)
     {
         status = CheckDirectory(deletePath);
         if (status != E_OK)
