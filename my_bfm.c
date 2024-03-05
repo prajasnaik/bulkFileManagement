@@ -136,17 +136,21 @@ ProcessCommandLine(char *commandLineArguments[], int argCount)
         case 'a':
             fAppend = ENABLE;
             appendPath = commandLineArguments[argno + 1];
-            appendBuffer = commandLineArguments[argno + 2]; 
-            argno += 3;
+            argno += 2;
             break;
         case 'l':
             fLog = ENABLE;
             logFileName = commandLineArguments[argno + 1];
             argno += 2;
             break;
-        case 'b':
+        case 'e':
             fBinary = ENABLE;
-            argno += 1;
+            appendBuffer = commandLineArguments[argno + 1];
+            argno += 2;
+            break;
+        case 's':
+            appendBuffer = commandLineArguments[argno + 1];
+            argno += 2;
             break;
         case 'f':
             fDirectory = ENABLE;
@@ -182,7 +186,7 @@ int Help()
 
     else 
     {
-        int error = CreateLog(logFileName, "Printed Help Message");
+        int error = CreateLog(logFileName, "\nPrinted Help Message");
         return error;
     }
 }
@@ -309,19 +313,19 @@ int
 CheckDirectory(char *filePath)
 {
     struct stat fileInfo;
-    int error = stat(filePath, &fileInfo);
-    if (error == E_GENERAL)
+    int status = stat(filePath, &fileInfo);
+    if (status == E_GENERAL)
     {
         char *errorMessage = strerror(errno);
-        error = CreateLog(logFileName, strcat("Failed to check directory: ", errorMessage));
-        return error;
+        status = CreateLog(logFileName, strcat("\nFailed to check directory: ", errorMessage));
+        return status;
     }
     else 
     {
-        error = CreateLog(logFileName, strcat(filePath,": Checked if path is file or directory."));
-        if (error != E_OK)
+        status = CreateLog(logFileName, strcat("\nChecked if path is file or directory: ", filePath));
+        if (status != E_OK)
         {
-            return error;
+            return status;
         }
         if(S_ISDIR(fileInfo.st_mode))
         {
@@ -415,12 +419,12 @@ AppendEvenNumbers(int startNumber, char *filePath)
     int status = NonBlockingOperation(&write, O_WRONLY | O_APPEND, filePath, oddNumbers, bytesToWrite);
     if (status == E_OK)
     {
-        status = CreateLog(logFileName, strcat("Appended even numbers to ", filePath));
+        status = CreateLog(logFileName, strcat("\nAppended even numbers to ", filePath));
     }
     else 
     {
         char *errorMessage = strerror(errno);
-        status = CreateLog(logFileName, strcat("Could not append even numbers: ", errorMessage));
+        status = CreateLog(logFileName, strcat("\nCould not append even numbers: ", errorMessage));
     }   
     return status;
 }
@@ -440,12 +444,12 @@ AppendText(char *text, char* filePath) //Wrapper function
     int status = NonBlockingOperation(&write, O_WRONLY | O_APPEND, filePath, text, bytesToWrite);
     if (status == E_OK)
     {
-        status = CreateLog(logFileName, strcat("Appended text to ", filePath));
+        status = CreateLog(logFileName, strcat("\nAppended text to ", filePath));
     }
     else 
     {
         char *errorMessage = strerror(errno);
-        status = CreateLog(logFileName, strcat("Could not append text to: ", errorMessage));
+        status = CreateLog(logFileName, strcat("\nCould not append text to: ", errorMessage));
     }   
     return status;
 }
@@ -463,7 +467,7 @@ PrintFirstNBytes(char *fileName)
     if (status != E_OK)
     {
         char *errorMessage = strerror(errno);
-        status = CreateLog(logFileName, strcat("Could not print first N bytes: ", errorMessage));
+        status = CreateLog(logFileName, strcat("\nCould not print first N bytes: ", errorMessage));
         return status;
     }
     else
@@ -471,12 +475,12 @@ PrintFirstNBytes(char *fileName)
         status = NonBlockingOperation(&write, 0, "stdout", buffer, N_BYTES);
         if (status == E_OK)
         {
-        status = CreateLog(logFileName, strcat("Printed first N bytes from: ", fileName));
+        status = CreateLog(logFileName, strcat("\nPrinted first N bytes from: ", fileName));
         }
         else 
         {
             char *errorMessage = strerror(errno);
-            status = CreateLog(logFileName, strcat("Could not print first N bytes: ", errorMessage));
+            status = CreateLog(logFileName, strcat("\nCould not print first N bytes: ", errorMessage));
         } 
         return status;
     }
@@ -494,16 +498,16 @@ CreateFile(char *pathName)
     if (fd == E_GENERAL)
     {
         char *errorMessage = strerror(errno);
-        status = CreateLog(logFileName, strcat("Could not create file: ", errorMessage));   
-        return errno;
+        status = CreateLog(logFileName, strcat(strcat(strcat("\nCould not create file ", pathName), ": "), errorMessage));   
+        return status;
     }
     else 
     {
-        status = CreateLog(logFileName, strcat("Successfully created file: ", pathName));   
+        status = CreateLog(logFileName, strcat("\nSuccessfully created file: ", pathName));   
         status = close(fd);
         if (status == E_GENERAL)
             return errno;
-        return E_OK;
+        return status;
     }
     
 }
@@ -516,25 +520,25 @@ CreateFile(char *pathName)
 int 
 RenameFile(char *oldFilePath, char *newFilePath)
 {
-    int error = E_OK;
+    int status = E_OK;
     if (link(oldFilePath, newFilePath) == E_GENERAL) // Done with link and unlink for learning purposes, can be done with rename system call
     {
-        char* errorMessage = strerror(errno)
-        error = CreateLog(logFileName, strcat("Failed to rename file: ", errorMessage));
-        return error;
+        char* errorMessage = strerror(errno);
+        status = CreateLog(logFileName, strcat(strcat(strcat("\nCould not rename the file ", oldFilePath), ": "), errorMessage));
+        return status;
     }
     else 
     {
         if (unlink(oldFilePath) == E_GENERAL)
         {
-            char* errorMessage = strerror(errno)
-            error = CreateLog(logFileName, strcat("Failed to rename file: ", errorMessage));
-            return error;
+            char* errorMessage = strerror(errno);
+            status = CreateLog(logFileName, strcat(strcat(strcat("\nCould not rename the file ", oldFilePath), ": "), errorMessage));
+            return status;
         }
         else 
         {
-            error = CreateLog(logFileName, strcat(strcat(strcat("Successfully renamed ", oldFilePath), " to "), newFilePath));
-            return E_OK;
+            status = CreateLog(logFileName, strcat(strcat(strcat("\nSuccessfully renamed ", oldFilePath), " to "), newFilePath));
+            return status;
         }
     }
 }
@@ -549,15 +553,16 @@ RenameDirectory(char *oldDirPath, char *newDirPath)
 {
     if (rename(oldDirPath, newDirPath) == E_GENERAL)
     {
-        int status = CreateLog(logFileName, strcat("Could not rename the file: ", strerror(errno)));
+        char *errorMessage = strerror(errno);
+        int status = CreateLog(logFileName, strcat(strcat(strcat("\nCould not rename the directory ", oldDirPath), ": "), errorMessage));
         return status;
     }
     else 
     {
-        int status = CreateLog(logFileName, strcat(strcat(strcat("Successfully rename the file: ", oldDirPath), " to "), newDirPath));
-        return E_OK;
+        int status = CreateLog(logFileName, strcat(strcat(strcat("\nSuccessfully rename the directory: ", oldDirPath), " to "), newDirPath));
+        return status;
     }
-x}
+}
 
 //  function: CreateDirectory
 //      Creates a new directory
@@ -569,11 +574,12 @@ CreateDirectory(char *pathName)
     int status = mkdir(pathName, S_IRWXU); // User has read, write, and execute access, can be made input based in the future
     if (status == E_GENERAL)
     {
-        status = CreateLog(logFileName, strcat(strcat(strcat("Could not create the directory ", pathName), ": "), strerror(errno)));
+        char *errorMessage = strerror(errno);
+        status = CreateLog(logFileName, strcat(strcat(strcat("\nCould not create the directory ", pathName), ": "), errorMessage));
         return status;
     }
-    status = CreateLog(logFileName, strcat("Successfully created directory: ", pathName));
-    return E_OK;
+    status = CreateLog(logFileName, strcat("\nSuccessfully created directory: ", pathName));
+    return status;
 }   
 
 //  function: RemoveFile
@@ -586,10 +592,15 @@ RemoveFile(char *filePath)
     int status = unlink(filePath);
     if (status == E_GENERAL)
     {
+        char *errorMessage = strerror(errno);
+        status = CreateLog(logFileName, strcat(strcat(strcat("\nCould not remove the file ", filePath), ": "), errorMessage));      
         return errno;
     }
     else 
-        return E_OK;
+    {
+        status = CreateLog(logFileName, strcat("\nSuccessfully removed file: ", filePath));
+        return status;
+    }
 }
 
 //  function: RemoveDirectory
@@ -606,10 +617,19 @@ RemoveDirectory(char *path)
         {
             goto notEmpty;
         }
-        else return errno; 
+        else 
+        {
+            char *errorMessage = strerror(errno);
+            status = CreateLog(logFileName, strcat(strcat(strcat("\nCould not remove the directory ", path), ": "), errorMessage));      
+            return errno; 
+        }
+
     }
     else
-        return E_OK;
+    {
+        status = CreateLog(logFileName, strcat("\nSuccessfully removed directory and its contents: ", path));
+        return status;
+    }
     notEmpty:
         status = BulkDeleteDirectory(path);
         if (status == 0)
