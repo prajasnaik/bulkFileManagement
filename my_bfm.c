@@ -1,7 +1,3 @@
-
-#define E_OK 0
-
-
 // @authors: Prajas Naik and Kalash Shah
 // @date: 13 February 2024
 // Simple file management program
@@ -44,6 +40,7 @@ int         fAppend     =           DISABLE;
 int         fBinary     =           DISABLE;
 int         fPath       =           DISABLE;
 int         fDirectory  =           DISABLE;
+int         fLog        =           DISABLE;
 
 // Buffers for storing paths for each function
 char        *createPath;
@@ -53,6 +50,7 @@ char        *newPath;
 char        *appendPath;
 char        *writePath;
 char        *appendBuffer;
+char        *logFileName;
 
 // Buffer for storing values to read and write
 char        readBuffer              [MAX_APPEND_SIZE];
@@ -62,7 +60,7 @@ char        writeBuffer             [MAX_APPEND_SIZE];
 int         ProcessCommandLine      (char **, int);
 int         CheckDirectory          (char *);
 int         NonBlockingOperation    (ssize_t (*) (int, void *, size_t), int, char *, void*, int );
-int         AppendOddNumbers        (int, char *);
+int         AppendEvenNumbers        (int, char *);
 int         AppendText              (char *, char*);
 int         CreateFile              (char *);
 int         CreateDirectory         (char *);
@@ -74,8 +72,10 @@ int         PerformOperations       ();
 int         PrintFirstNBytes        (char *);
 int         Help                    ();
 int         BulkDeleteDirectory     (char *);
+int         CreateLog               (char *, char *);
 
-struct linux_dirent {
+struct 
+linux_dirent {
     unsigned long  d_ino;
     off_t          d_off;
     unsigned short d_reclen;
@@ -83,7 +83,8 @@ struct linux_dirent {
 };
 
 // Main function
-int main(int argc, char *argv[])
+int 
+main(int argc, char *argv[])
 {
     if (argc == 1)
             ec = Help();
@@ -103,7 +104,8 @@ int main(int argc, char *argv[])
 //          arguments
 //  @param: argCount - Integer count of total  number of command line arguments
 //  @return: Integer error code
-int ProcessCommandLine(char *commandLineArguments[], int argCount)
+int 
+ProcessCommandLine(char *commandLineArguments[], int argCount)
 {
     int argno = 1;
     while(argno < argCount)
@@ -137,6 +139,11 @@ int ProcessCommandLine(char *commandLineArguments[], int argCount)
             appendBuffer = commandLineArguments[argno + 2]; 
             argno += 3;
             break;
+        case 'l':
+            fLog = ENABLE;
+            logFileName = commandLineArguments[argno + 1];
+            argno += 2;
+            break;
         case 'b':
             fBinary = ENABLE;
             argno += 1;
@@ -165,8 +172,19 @@ int Help()
     int length = strlen(helpMessage);
     int error = write(STDOUT_FILENO, helpMessage, length);
     if (error == E_GENERAL)
-        return errno;
-    else return E_OK;
+    {
+        char *errorMessage = strerror(errno);
+        int errorCode = errno;
+        errorMessage = strcat("\nFailed to print Help Message: ", errorMessage);
+        int error = CreateLog(logFileName, errorMessage);
+        return error;
+    }
+
+    else 
+    {
+        int error = CreateLog(logFileName, "Printed Help Message");
+        return error;
+    }
 }
 
 
@@ -175,7 +193,8 @@ int Help()
 //      which flags were set after processing command line.
 //  @param: None
 //  @return: Integer Error Code
-int PerformOperations()
+int 
+PerformOperations()
 {
     int status = E_OK;
     
@@ -226,7 +245,7 @@ int PerformOperations()
             if (fBinary)
             {
                 int startNumber = strtol(appendBuffer, NULL, 0);    // Convert start number to int base 10
-                AppendOddNumbers(startNumber, appendPath);
+                AppendEvenNumbers(startNumber, appendPath);
                 if (status != E_OK)
                     return status;
             }
@@ -286,16 +305,24 @@ int PerformOperations()
 //      sets the fDirectory flag appropriately
 //  @param: char pointer to the file path we want to check
 //  @return: Integer error code
-int CheckDirectory(char *filePath)
+int 
+CheckDirectory(char *filePath)
 {
     struct stat fileInfo;
     int error = stat(filePath, &fileInfo);
     if (error == E_GENERAL)
     {
-        return errno;
+        char *errorMessage = strerror(errno);
+        error = CreateLog(logFileName, strcat("Failed to check directory: ", errorMessage));
+        return error;
     }
     else 
     {
+        error = CreateLog(logFileName, strcat(filePath,": Checked if path is file or directory."));
+        if (error != E_OK)
+        {
+            return error;
+        }
         if(S_ISDIR(fileInfo.st_mode))
         {
             fDirectory = ENABLE;
@@ -316,7 +343,8 @@ int CheckDirectory(char *filePath)
 //  @param: buffer to use for writing/reading. Can be any data type.
 //  @param: number of bytes to write/read.
 //  @return: integer error code
-int NonBlockingOperation(ssize_t (*operation) (int, void *, size_t), int flag, char *filePath, void* buffer, int noOfBytes) //will cause warning with write function as argument, but this is not an issue
+int 
+NonBlockingOperation(ssize_t (*operation) (int, void *, size_t), int flag, char *filePath, void* buffer, int noOfBytes) //will cause warning with write function as argument, but this is not an issue
 {
     int fd;
     if (strcmp(filePath, "stdout") == 0)
@@ -365,17 +393,18 @@ int NonBlockingOperation(ssize_t (*operation) (int, void *, size_t), int flag, c
 //  @param: Integer number to start from
 //  @param: Pointer to file path
 //  @return: Integer Error Code
-int AppendOddNumbers(int startNumber, char *filePath)
+int 
+AppendEvenNumbers(int startNumber, char *filePath)
 {
     short int oddNumbers[25];
     int bytesToWrite = 50;
     if (startNumber < 50) // To ensure at most 50 bytes get written
         return E_OK;
-    else if (startNumber % 2 == 0)
+    else if (startNumber % 2 == 1)
         startNumber ++;
     for (int i = 0; i < 25; i ++)
     {
-        if (startNumber > 200)
+        if (startNumber > 199)
             {
                 bytesToWrite = i * 2; // In case number exceeds 200, we stop writing
                 break;
@@ -384,6 +413,15 @@ int AppendOddNumbers(int startNumber, char *filePath)
         startNumber += 2;
     }
     int status = NonBlockingOperation(&write, O_WRONLY | O_APPEND, filePath, oddNumbers, bytesToWrite);
+    if (status == E_OK)
+    {
+        status = CreateLog(logFileName, strcat("Appended even numbers to ", filePath));
+    }
+    else 
+    {
+        char *errorMessage = strerror(errno);
+        status = CreateLog(logFileName, strcat("Could not append even numbers: ", errorMessage));
+    }   
     return status;
 }
 
@@ -393,12 +431,22 @@ int AppendOddNumbers(int startNumber, char *filePath)
 //  @param: Pointer to text to write
 //  @param: Pointer to file path
 //  @return: Integer Error Code
-int AppendText(char *text, char* filePath) //Wrapper function
+int 
+AppendText(char *text, char* filePath) //Wrapper function
 {
     int bytesToWrite = strlen(text);
     if (bytesToWrite > N_BYTES)
         bytesToWrite = N_BYTES; //To ensure at most 50 bytes are written
     int status = NonBlockingOperation(&write, O_WRONLY | O_APPEND, filePath, text, bytesToWrite);
+    if (status == E_OK)
+    {
+        status = CreateLog(logFileName, strcat("Appended text to ", filePath));
+    }
+    else 
+    {
+        char *errorMessage = strerror(errno);
+        status = CreateLog(logFileName, strcat("Could not append text to: ", errorMessage));
+    }   
     return status;
 }
 
@@ -407,17 +455,29 @@ int AppendText(char *text, char* filePath) //Wrapper function
 //      read function
 //  @param: pointer to file name
 //  @return: Integer Error Code
-int PrintFirstNBytes(char *fileName)
+int 
+PrintFirstNBytes(char *fileName)
 {
     char buffer[MAX_APPEND_SIZE];
     int status = NonBlockingOperation(&read, O_RDONLY, fileName, buffer, N_BYTES);
     if (status != E_OK)
     {
+        char *errorMessage = strerror(errno);
+        status = CreateLog(logFileName, strcat("Could not print first N bytes: ", errorMessage));
         return status;
     }
     else
     {
         status = NonBlockingOperation(&write, 0, "stdout", buffer, N_BYTES);
+        if (status == E_OK)
+        {
+        status = CreateLog(logFileName, strcat("Printed first N bytes from: ", fileName));
+        }
+        else 
+        {
+            char *errorMessage = strerror(errno);
+            status = CreateLog(logFileName, strcat("Could not print first N bytes: ", errorMessage));
+        } 
         return status;
     }
 }
@@ -426,16 +486,21 @@ int PrintFirstNBytes(char *fileName)
 //      Creates a file with specified file name
 //  @param: pointer to file path you want to create
 //  @return: Integer Error Code
-int CreateFile(char *pathName)
+int 
+CreateFile(char *pathName)
 {
     int fd = creat(pathName, S_IRWXU); // User has read, write, and execute access, can be made input based in the future
+    int status = E_OK;
     if (fd == E_GENERAL)
     {
+        char *errorMessage = strerror(errno);
+        status = CreateLog(logFileName, strcat("Could not create file: ", errorMessage));   
         return errno;
     }
     else 
     {
-        int status = close(fd);
+        status = CreateLog(logFileName, strcat("Successfully created file: ", pathName));   
+        status = close(fd);
         if (status == E_GENERAL)
             return errno;
         return E_OK;
@@ -448,19 +513,29 @@ int CreateFile(char *pathName)
 //  @param: Pointer to old file name / path
 //  @param: Pointer to new file name / path
 //  @return: Integer error code
-int RenameFile(char *oldFilePath, char *newFilePath)
+int 
+RenameFile(char *oldFilePath, char *newFilePath)
 {
+    int error = E_OK;
     if (link(oldFilePath, newFilePath) == E_GENERAL) // Done with link and unlink for learning purposes, can be done with rename system call
     {
-        return errno;
+        char* errorMessage = strerror(errno)
+        error = CreateLog(logFileName, strcat("Failed to rename file: ", errorMessage));
+        return error;
     }
     else 
     {
         if (unlink(oldFilePath) == E_GENERAL)
         {
-            return errno;
+            char* errorMessage = strerror(errno)
+            error = CreateLog(logFileName, strcat("Failed to rename file: ", errorMessage));
+            return error;
         }
-        else return E_OK;
+        else 
+        {
+            error = CreateLog(logFileName, strcat(strcat(strcat("Successfully renamed ", oldFilePath), " to "), newFilePath));
+            return E_OK;
+        }
     }
 }
 
@@ -469,24 +544,35 @@ int RenameFile(char *oldFilePath, char *newFilePath)
 //  @param: Pointer to old directory name / path
 //  @param: Pointer to new directory name / path
 //  @return: Integer error code
-int RenameDirectory(char *oldDirPath, char *newDirPath)
+int 
+RenameDirectory(char *oldDirPath, char *newDirPath)
 {
     if (rename(oldDirPath, newDirPath) == E_GENERAL)
-        return errno;
-    else return E_OK;
-}
+    {
+        int status = CreateLog(logFileName, strcat("Could not rename the file: ", strerror(errno)));
+        return status;
+    }
+    else 
+    {
+        int status = CreateLog(logFileName, strcat(strcat(strcat("Successfully rename the file: ", oldDirPath), " to "), newDirPath));
+        return E_OK;
+    }
+x}
 
 //  function: CreateDirectory
 //      Creates a new directory
 //  @param: Pointer to pathname
 //  @return: Integer error code
-int CreateDirectory(char *pathName)
+int 
+CreateDirectory(char *pathName)
 {
     int status = mkdir(pathName, S_IRWXU); // User has read, write, and execute access, can be made input based in the future
     if (status == E_GENERAL)
     {
-        return errno;
+        status = CreateLog(logFileName, strcat(strcat(strcat("Could not create the directory ", pathName), ": "), strerror(errno)));
+        return status;
     }
+    status = CreateLog(logFileName, strcat("Successfully created directory: ", pathName));
     return E_OK;
 }   
 
@@ -581,3 +667,12 @@ BulkDeleteDirectory(char *path)
     }
 }
 
+int
+CreateLog(char * path, char *message)
+{
+    strcat(path, "/log.txt");
+    int status = NonBlockingOperation(&write, O_APPEND | O_CREAT | O_WRONLY | S_IRWXU, path, message, strlen(message));
+    if (status == E_GENERAL)
+        return errno;
+    return E_OK;
+}
