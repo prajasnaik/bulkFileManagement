@@ -40,7 +40,7 @@ int         fPath       =           DISABLE;
 int         fDirectory  =           DISABLE;
 int         fLog        =           DISABLE;
 
-// Buffers for storing paths for each function
+	// Buffers for storing paths for each function
 char        *createPath;
 char        *deletePath;
 char        *oldPath;
@@ -114,36 +114,50 @@ ProcessCommandLine(char *commandLineArguments[], int argCount)
         {
         case 'c':
             fCreate = ENABLE;
+            if (argno + 1 == argCount)
+                return E_GENERAL;
             createPath = commandLineArguments[argno + 1];
             argno += 2;
             break;
         case 'd':
             fDelete = ENABLE;
+            if (argno + 1 == argCount)
+                return E_GENERAL;
             deletePath = commandLineArguments[argno + 1];
             argno += 2;
             break;
         case 'r':
             fRename = ENABLE;
+            if (argno + 2 == argCount)
+                return E_GENERAL;
             oldPath = commandLineArguments[argno + 1];
             newPath = commandLineArguments[argno + 2];
             argno += 3;
             break;
         case 'a':
             fAppend = ENABLE;
+            if (argno + 1 == argCount)
+                return E_GENERAL;
             appendPath = commandLineArguments[argno + 1];
             argno += 2;
             break;
         case 'l':
             fLog = ENABLE;
+            if (argno + 1 == argCount)
+                return E_GENERAL;
             logFileName = commandLineArguments[argno + 1];
             argno += 2;
             break;
         case 'e':
             fBinary = ENABLE;
+            if (argno + 1 == argCount)
+                return E_GENERAL;
             appendBuffer = commandLineArguments[argno + 1];
             argno += 2;
             break;
         case 's':
+            if (argno + 1 == argCount)
+                return E_GENERAL;
             appendBuffer = commandLineArguments[argno + 1];
             argno += 2;
             break;
@@ -168,7 +182,7 @@ ProcessCommandLine(char *commandLineArguments[], int argCount)
 int 
 Help()
 {
-    char *helpMessage = "\tUsage:\n\t./my_fm -c <Path> -a <TextFilePath> -s <string to append> OR -e <number to append> -r <OldPath> <NewPath> -d <Path> -l <log file>\n\tFor more info, please refer to README file\n";
+    char *helpMessage = "\tUsage:\n\t./my_bfm -c <Path> -a <TextFilePath> -s <string to append> OR -e <number to append> -r <OldPath> <NewPath> -d <Path> -l <log file>\n\tFor more info, please refer to README file\n";
     int length = strlen(helpMessage);
     int error = write(STDOUT_FILENO, helpMessage, length);
     if (error == E_GENERAL)
